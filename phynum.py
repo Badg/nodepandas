@@ -168,3 +168,62 @@ def get_deltas(iterable):
     del deltas[0]
     
     return deltas
+
+def knn_coords(df, k, coords, scale_length=None):
+    """ Searches a pandas <df> for the <k> nearest neighbours to <coords>.
+    
+    Arguments
+    =========
+    + <df> : pandas dataframe to search
+    + <k> : integer number of neighbors to find
+    + <coords> : tuple or list of coordinates to search
+    + <scale_length> : optional approximate side length of each coordinate 
+    cell.  Used to preselect search bucket for faster search and highly 
+    recommended for any large <df>.
+    
+    Returns
+    =======
+    + <nameless> : pandas dataframe
+    """    
+    # Extract coords
+    x = coords[0]
+    y = coords[1]
+    z = coords[2]
+    
+    # Create the search bucket
+    bucket = pd.DataFrame()
+    bucketslop = 2
+    
+    # If scale length is defined, shrink the search bucket
+    if scale_length:
+        # Conservatively select a "cube" of data with side length bucket_leg
+        # centered at coords
+        bucket_leg = k * scale_length / 2
+        # If the bucket is smaller than bucketslop*k (cannot be k, since this 
+        # is searching manhattan distance and we want euclidian distance), 
+        # select a bucket and then (just in case) scale the bucket_leg
+        while len(bucket) < k * bucketslop:
+            bucket = df[(df.x - x > -bucket_leg) & (df.x - x < bucket_leg) &
+                        (df.y - y > -bucket_leg) & (df.y - y < bucket_leg) &
+                        (df.z - z > -bucket_leg) & (df.z - z < bucket_leg)]
+            # Double the bucket leg length in case this is too small
+            bucket_leg *= 2
+    # If scale length isn't defined, use the whole df
+    else:
+        bucket = df
+        
+    # Progress report: we have a search bucket.  Now let's search it.
+    # Examine each row in the bucket and calculate the distance to target, 
+    # creating a zip of [(<distance>, <index>)]
+    dists = ((bucket.loc[:,'x'] - x)**2 + (bucket.loc[:,'y'] - y)**2 + 
+             (bucket.loc[:,'z'] - z)**2)**(1/2)
+    dists = zip(dists, range(len(dists)))
+    
+    # Now sort dists ascendingly and select the k indices
+    dists = sorted(dists, key=lambda item: item[0])
+    dists = dists[:k]
+    sel = [it[1] for it in dists]
+    
+    # Return the corresponding first k elements from bucket
+    return bucket.iloc[sel]
+    
