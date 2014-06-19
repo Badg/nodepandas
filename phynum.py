@@ -29,7 +29,7 @@ def IGM_interp(df, coords, guess=None):
 
     # Use the mean of the two closest points as a guess if one is not passed
     if not guess:
-        guess = df.ix[0:1, datcols].mean()
+        guess = df.ix[:, datcols].mean()
 
     # Get initial partial derivatives from guess. Don't forget that coords
     # have been adjusted to center around 0, 0, 0, so no subtraction is needed
