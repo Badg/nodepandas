@@ -1,31 +1,79 @@
 import pandas as pd
 import numpy as np
 
-def IGM_interp(df, coords, guess=None):
+def IGM_interp(df, coords, coordnames=['x','y','z'], ignorecols=None, guess=None):
     """Uses an approximate numerical gradient to interpolate nearby values.
 
     "Iterative gradient method" interpolation (totally bullshit made-up name) 
     weights points by proximity, 
     """
+    # Expediently get the number of rows
+    numpoints = len(df.index)
+    # Immediately reindex
+    df.set_index([list(range(numpoints))], inplace=True)
+    # Get the column names
+    colnames = df.columns
+    # Assign coordinate column names to representative variables
+    if len(coordnames) != 3 or \
+        [col for col in coordnames if col not in colnames]: 
+        raise ValueError("coordnames must have 3 elements and all must be "
+            "present in dataframe")
+    x, y, z = coordnames
     # Get columns with data points
-    ignorecols = ['x', 'y', 'z', 'rDist', 'rWeight']
+    if not ignorecols:
+        ignorecols=[]
+    ignorecols.extend(['rDist', 'rWeight'])
+    ignorecols.extend(coordnames)
     datcols = [col for col in df.columns if col not in ignorecols]
-    fullcols = df.columns
-    # First, transform to a local coordinate system with coords as [0,0,0]
+
+    # Transform to a local coordinate system with coords as [0,0,0]
     # Note that, as python is pass-by-assignment, this will not change the
     # df in the caller's namespace
-    df.loc[:, 'x'] -= coords[0]
-    df.loc[:, 'y'] -= coords[1]
-    df.loc[:, 'z'] -= coords[2]
+    df.loc[:, x] -= coords[0]
+    df.loc[:, y] -= coords[1]
+    df.loc[:, z] -= coords[2]
+
+    # Generate skew-symmetric matrices for each of the fields for deltas
+    zeros = pd.DataFrame(index=range(numpoints), 
+        columns=range(numpoints)).fillna(0)
+    deltas = {}
+    for col in colnames:
+        deltas[col] = zeros.add(df.ix[:,col], axis='index', level='columns')\
+            .sub(df.ix[:,col], axis='columns', level='index')
+
+    # Create the multipliers dict used to weight the partial derivatives
+    alphas = {x:1, y:1, z:1}
+
+    # Calculate the denominator of the weights expression
+    denom = (alphas[x] * deltas[x]).add(alphas[y] * deltas[y]).add(
+        alphas[z] * deltas[z])
+    print("#######################################################")
+    print(deltas['unk'])
+
+    # Calculate the deltaCoord/deltaVals
+    delX = {}
+    for col in datcols:
+        delX[col] = (alphas[x] * deltas[col]).div(denom)
+    delY = {}
+    for col in datcols:
+        delY[col] = (alphas[y] * deltas[col]).div(denom)
+    delZ = {}
+    for col in datcols:
+        delZ[col] = (alphas[z] * deltas[col]).div(denom)
+
+    summation = {}
+    for col in datcols:
+        summation[col] = delX[col].mul(deltas[x]) + delY[col].mul(deltas[y])+delZ[col].mul(deltas[x])
+    print(summation)
+
     # Append "rDist" to the df
     df.loc[:, 'rDist'] = (df.loc[:, 'x'] ** 2 +
         df.loc[:,'y'] ** 2 + df.loc[:, 'z'] ** 2) ** (1/2)
     # Sort by rDist and re-index
     df.sort(columns='rDist', inplace=True)
-    df.set_index([list(range(len(df)))], inplace=True)
     # Handle zero rDist
     if df.ix[0, 'rDist'] == 0:
-        return df.ix[0, fullcols]
+        return df.ix[0, colnames]
 
     # Use the mean of the two closest points as a guess if one is not passed
     if not guess:
