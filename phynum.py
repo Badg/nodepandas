@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from scipy.stats import gmean
 
 def IGM_interp(df, coords, coordnames=['x','y','z'], ignorecols=None, guess=None):
     """Uses an approximate numerical gradient to interpolate nearby values.
@@ -42,29 +43,50 @@ def IGM_interp(df, coords, coordnames=['x','y','z'], ignorecols=None, guess=None
             .sub(df.ix[:,col], axis='columns', level='index')
 
     # Create the multipliers dict used to weight the partial derivatives
-    alphas = {x:1, y:1, z:1}
+    alphas = {}
+    denom = {}
+    partials = {}
+    partials_norm = {}
+    variance = {}
+    # This should be reworked to use more loopage
+    for col in datcols:
+        alphas[col] = {x:1, y:1, z:1}
 
-    # Calculate the denominator of the weights expression
-    denom = (alphas[x] * deltas[x]).add(alphas[y] * deltas[y]).add(
-        alphas[z] * deltas[z])
-    print("#######################################################")
-    print(deltas['unk'])
+        # Calculate the denominator of the weights expression
+        denom[col] = (alphas[col][x] * deltas[x]).add(
+            alphas[col][y] * deltas[y]).add(
+            alphas[col][z] * deltas[z])
 
-    # Calculate the deltaCoord/deltaVals
-    delX = {}
-    for col in datcols:
-        delX[col] = (alphas[x] * deltas[col]).div(denom)
-    delY = {}
-    for col in datcols:
-        delY[col] = (alphas[y] * deltas[col]).div(denom)
-    delZ = {}
-    for col in datcols:
-        delZ[col] = (alphas[z] * deltas[col]).div(denom)
+        # Calculate the pdVal/pdCoords. These are symmetric (not skew)
+        # Also calculate them normalized as percentages.
+        partials[col] = {
+            x: (alphas[col][x] * deltas[col]).div(denom[col]),
+            y: (alphas[col][y] * deltas[col]).div(denom[col]), 
+            z: (alphas[col][z] * deltas[col]).div(denom[col])
+            }
+        partials_norm[col] = {
+            x: partials[col][x].div(df.loc[:, col], level='columns') * 100,
+            y: partials[col][y].div(df.loc[:, col], level='columns') * 100, 
+            z: partials[col][z].div(df.loc[:, col], level='columns') * 100
+            }
 
-    summation = {}
-    for col in datcols:
-        summation[col] = delX[col].mul(deltas[x]) + delY[col].mul(deltas[y])+delZ[col].mul(deltas[x])
-    print(summation)
+        # Compute the variance of the normalized partials
+        variance[col] = np.prod([
+            partials_norm[col][x].var(ddof=0, axis='index').mul( 
+            partials_norm[col][y].var(ddof=0, axis='index')).mul( 
+            partials_norm[col][z].var(ddof=0, axis='index'))
+            ])
+
+    # Sum the partials
+    # summation = {}
+    # for col in datcols:
+    #     summation[col] = pdX[col].mul(deltas[x]) + \
+    #     pdY[col].mul(deltas[y]) + \
+    #     pdZ[col].mul(deltas[z])
+
+    print("##########################################################")
+    print(partials_norm)
+    print(variance)
 
     # Append "rDist" to the df
     df.loc[:, 'rDist'] = (df.loc[:, 'x'] ** 2 +
