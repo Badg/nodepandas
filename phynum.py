@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 from scipy.stats import gmean
+from pyDOE import lhs
+import random as rand
 
 def IGM_interp(df, coords, coordnames=['x','y','z'], ignorecols=None, guess=None):
     """Uses an approximate numerical gradient to interpolate nearby values.
@@ -159,6 +161,151 @@ def IGM_interp(df, coords, coordnames=['x','y','z'], ignorecols=None, guess=None
 
         guess = df.ix[0,datcols] - deltas.sum(axis='index')
     return guess
+
+def MCS(n_gens, nest_seed, param_limits=None, param_names=None):
+    """Modified cuckoo search!
+
+    Adapted from Sean Walton's MCS matlab script.  Relevant paper citation:
+    S.Walton, O.Hassan, K.Morgan and M.R.Brown "Modified cuckoo search: A
+    new gradient free optimisation algorithm" Chaos, Solitons & Fractals Vol
+    44 Issue 9, Sept 2011 pp. 710-718 DOI:10.1016/j.chaos.2011.06.004
+
+    n_gens: number of generations
+    nest_seed: initial guessed nests
+    vardef: upper, lower bounds of particle position
+
+    s.A -> step size; increasing decreases step size
+    s.pwr -> power of step size reduction per generation
+    s.flight -> type of random walk
+    s.nesd -> eggs deleted per generation
+    s.constrain -> constrain to vardef?
+    s.pa -> "fraction discard"
+
+    p, F, pg, eval_hist, diversity
+    p -> time history of nest position
+    f -> time history of objective function value of each nest
+    pg -> optimum position found
+    evalhist -> number of function evaluations each generation
+    diversity -> a diversity measure
+    """
+    # Dimensions and nests
+    n_params = len(nest_seed[1,:])
+    n_nests = len(nest_seed)
+    min_nests = 10
+
+    # Check input arguments for consistency
+    if param_limits and n_params != len(param_limits):
+        raise ValueError("Every row in nest_seed must have exactly one "
+            "limit per parameter.")
+
+    # If parameter names are not defined, number them
+    if not param_names:
+        param_names = list(range(n_params))
+
+    # Iterant counting how many evaluations of the objective function
+    ii = 0
+
+    # Reference to objective function (currently, placeholder)
+    objective = lambda x: x
+    # NOTE: Need to fix this to be something legit
+    # Should probably take objective as an argument
+
+    # Step scale factor (greater -> smaller step size)
+    fineness = 1
+    stepsize = (vardef[1,:] - vardef[2,:]) / fineness
+
+    # timeStart = tic;
+
+
+    # Initialize the generation state variable, [<objective>, <parameters>]
+    gen_state = pd.DataFrame(columns=['nest', 'objective', 'diversity'] + 
+        param_names)
+    diversity = []
+    eval_hist = []
+
+    # Initialize the state from the nest seed
+    for i in range(len(nest_seed)):
+        gen_state.ix[i, 0:] = nest_seed[i]
+        gen_state.loc[i, 'nest'] = i
+
+    # Calculate the objective function for the seeded parameters
+    gen_state.loc[:,'objective'] = gen_state.apply(objective, axis='index')
+    # NOTE: this ^^ needs serious troubleshooting
+
+
+    ##############################################
+
+    
+    pos_current = nest_seed
+    # Current objective: <number of nests>
+    # Changereq: This should use numpy arrays for better performance
+    obj_current = []
+    # Calculate fitness for initial nests
+    for i in range(n_nests):
+        obj_temp = objective(pos_current[i])
+        if obj_temp.imag:
+            obj_current.append(np.inf)
+            # Changereq: np.NaN
+        else:
+            obj_current.append(obj_temp)
+    # THIS is why the iteration number history is needed -- it's saving the
+    # histories and you need to be able to distinguish the nests.
+    # Should probably allow the option to do either.
+
+    positions.append(pos_current)
+    objectives.append(obj_current)
+
+    # Calculate diversity
+    pos_mean = pos_current.mean(axis='columns')
+    pos_dist = np.square(pos_current.sub(pos_mean, axis='index'))\
+        .sum(axis='index')
+    length_diag = max(pos_dist.append(0))
+    diversity.append(pos_dist.sum(axis='columns') / (length_diag * n_nests))
+    eval_hist.append(n_iter)
+
+    # pa = S.pa; (fraction to discard)
+    # ptop = 1-pa;
+    # G = 1;
+
+    # Iterate over generations
+    while n_iter < n_gens:
+        # Up the iteration number
+        n_iter += 1
+
+
+
+
+def lhs_scaled(var_min, var_max, n):
+    """ Latin Hypercube Sampling of variables defined by vardef
+    vardef(2, len(N)) <max value, min value>
+    N -> number of samples to generate
+    LHC.m
+    """
+
+    # Get number of variables and their scaling factor
+    k = len(var_min)
+    spread = var_max - var_min
+
+    # Get linear hypercube sample and scale it, then return
+    return var_min + spread * lhs(k, n, criterion='maximin', iterations=100)
+
+def empty_nests(nest, pa):
+    """ Discover a fraction of the worse nests with a probability of pa.
+
+    0 <= pa <= 1
+
+    In the real world, if a cuckoo's egg is very similar to a host's eggs, then 
+    this cuckoo's egg is less likely to be discovered, thus the fitness should 
+    be related to the difference in solutions.  Therefore, it is a good idea 
+    to do a random walk in a biased way with some random step sizes."""
+
+    n = len(nest)
+    comparator = [rand.random() for __nothing__ in range(n)]
+    # Boolean list for discovery
+    discovered = [k > pa for k in comparator]
+
+    stepsize = rand.random() * rand.shuffle(nest)
+
 
 def linterp_1D(series1, series2, colname, coord, ignore=None):
     """Simple 1d linear interpolator between 2 pandas series.
