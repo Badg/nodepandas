@@ -5,6 +5,18 @@ from pyDOE import lhs
 import random as rand
 import math
 
+"""
+Goal is to extend pandas dataframes to nodes, providing direct support for 
+n-dim coordinates, as well as connections between points.
+
+"""
+class NodeDataFrame(pd.DataFrame):
+    pass
+
+class NodeSeries(pd.Series):
+    pass
+
+
 def unit_norm(arr):
     """ Normalizes an np array along rows such that 
     sqrt(a1^2 + a2^2 + ...) = 1.
@@ -103,6 +115,13 @@ def get_deltas(iterable):
     
     return deltas
 
+# Note: this search could be improved by progressive bucketing, ie: for each
+# coordinate, slice by range.  That would greatly decrease the search space
+# for each coordinate, theoretically (maybe?) decreasing time to select,
+# instead of needing to satisfy multiple conditions.  I guess it depends on
+# the internals of the selection on the pandas side.
+
+# At any rate, this needs to be generalized to N-dimensional coordinates.
 def knn_coords(df, k, coords, scale_length=None):
     """ Searches a pandas <df> for the <k> nearest neighbours to <coords>.
     
