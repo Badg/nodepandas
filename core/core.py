@@ -5,15 +5,87 @@ from pyDOE import lhs
 import random as rand
 import math
 
+_basename = "nodecoord_"
+_connect_col = "_connections"
+_coord_row = "_coord"
+_units_row = "_units"
+
 """
 Goal is to extend pandas dataframes to nodes, providing direct support for 
 n-dim coordinates, as well as connections between points.
 
 """
 class NodeDataFrame(pd.DataFrame):
-    pass
+    """ A pandas.dataframe object that contains, at a minimum, N columns of 
+    coordinates.  May also include a column defining connections between
+    nodes.
+    """
+    # Need to add error traps such that connections are always a list of ints
+    # and at least one coordinate must be defined.
+    def __init__(self, data, coords, *args, units=None, columns=None, 
+        **kwargs):
+        # Do a quick pre-check on the data
+        if type(data) is dict:
+            columns = list(data.keys())
+        elif type(data) is pd.DataFrame:
+            columns = list(data.columns)
+
+        # Argument error traps
+        if not columns:
+            # Can't have coordinates without at least one named column
+            raise ValueError('At least one column must be named.')
+
+        if not units:
+            units = {}
+
+        # Coords must either be a dict of <field>: <bool>...
+        if type(coords) is dict:
+            # Make sure the 
+            for coord in coords:
+                if type(coord) is not bool:
+                    raise ValueError('Coordinate dictionary values must '
+                        'contain only bools.')
+                if len(coords) > len(columns):
+                    raise ValueError('Cannot have more coordinates than named'
+                        ' columns.')
+            for key in list(coords.keys()):
+                if key not in columns:
+                    raise Warning('Coord ' + key + ' not in column names; '
+                        'we\'ve appended it, but unexpected behavior may '
+                        'occur.')
+                    columns.append(key)
+        # ... or a list of columns.
+        elif type(coords) is list and type(coords[0]) is str:
+            for coord in coords:
+                # Error out if the coordinate is missing from the columns
+                if coord not in columns:
+                    raise Warning('Coord ' + coord + ' not in column names; '
+                        'we\'ve appended it, but unexpected behavior may '
+                        'occur.')
+                    columns.append(coord)
+            # Convert it to a boolean array
+            coords = {col: (col in coords) for col in columns}
+        # Catch ill-formed coordinate declaration.
+        else:
+            raise TypeError('Coords must be in form [<str>] or [<bool>].')
+
+        # Add internal columns
+        if _connect_col not in columns:
+            columns.append(_connect_col)
+
+        super(NodeDataFrame, self).__init__(data, *args, columns=columns, 
+            **kwargs)
+
+        self.ix[_coord_row, :] = pd.Series(coords)
+        self.ix[_units_row, :] = pd.Series(units)
+    
 
 class NodeSeries(pd.Series):
+    """ A pandas.series object that contains, at a minimum, N columns of 
+    coordinates.  May also include a column defining connections between 
+    nodes, though it should be noted that this would only be useful if the 
+    series is a view into a nodedataframe.
+    """
     pass
 
 
