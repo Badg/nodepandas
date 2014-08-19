@@ -18,7 +18,7 @@ n-dim coordinates, as well as connections between points.
 class NodeDataFrame(pd.DataFrame):
     """ A pandas.dataframe object that contains, at a minimum, N columns of 
     coordinates.  May also include a column defining connections between
-    nodes.
+    nodes. Mostly a convenience class.
     """
     # Need to add error traps such that connections are always a list of ints
     # and at least one coordinate must be defined.
@@ -76,8 +76,8 @@ class NodeDataFrame(pd.DataFrame):
         super(NodeDataFrame, self).__init__(data, *args, columns=columns, 
             **kwargs)
 
-        self.ix[_coord_row, :] = pd.Series(coords)
-        self.ix[_units_row, :] = pd.Series(units)
+        self.loc[_coord_row, :] = pd.Series(coords)
+        self.loc[_units_row, :] = pd.Series(units)
     
 
 class NodeSeries(pd.Series):
