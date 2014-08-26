@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from scipy.stats import gmean
-from pyDOE import lhs
 import random as rand
 import math
 
