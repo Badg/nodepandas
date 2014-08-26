@@ -35,39 +35,76 @@ class NodeDataFrame(pd.DataFrame):
             # Can't have coordinates without at least one named column
             raise ValueError('At least one column must be named.')
 
-        if not units:
+        # Supported definitions of units: {<key>: <str>} and [<str>]
+        if units:
+            # First try it as a dictionary
+            try:
+                for key, value in units.items():
+                    if key not in columns:
+                        raise Warning('Coord ' + key + ' not in column names; '
+                            'we\'ve appended it, but unexpected behavior may '
+                            'occur.')
+                        columns.append(key)
+            # Okay, not a dictionary. Try it as a list.
+            except AttributeError:
+                try:
+                    if len(units) != len(columns):
+                        raise Warning('Number of units doesn\'nt match number'
+                            'of columns.')
+                    units = {col: unit for col, unit in zip(columns, units)}
+                except (TypeError, AttributeError):
+                    raise Warning('Ill-defined units. Proceeding without '
+                        'units.')
+                    units = {}
+        else:
             units = {}
 
+
         # Coords must either be a dict of <field>: <bool>...
-        if type(coords) is dict:
-            # Make sure the 
-            for coord in coords:
+        try:
+            # First try as a dictionary
+            # Make sure the key is in the columns and the items are bools
+            for key, coord in coords.items():
                 if type(coord) is not bool:
                     raise ValueError('Coordinate dictionary values must '
                         'contain only bools.')
                 if len(coords) > len(columns):
                     raise ValueError('Cannot have more coordinates than named'
                         ' columns.')
-            for key in list(coords.keys()):
                 if key not in columns:
                     raise Warning('Coord ' + key + ' not in column names; '
                         'we\'ve appended it, but unexpected behavior may '
                         'occur.')
                     columns.append(key)
-        # ... or a list of columns.
-        elif type(coords) is list and type(coords[0]) is str:
-            for coord in coords:
-                # Error out if the coordinate is missing from the columns
-                if coord not in columns:
-                    raise Warning('Coord ' + coord + ' not in column names; '
-                        'we\'ve appended it, but unexpected behavior may '
-                        'occur.')
-                    columns.append(coord)
-            # Convert it to a boolean array
-            coords = {col: (col in coords) for col in columns}
-        # Catch ill-formed coordinate declaration.
-        else:
-            raise TypeError('Coords must be in form [<str>] or [<bool>].')
+        except AttributeError:
+            # ... or a list of columns...
+            try:
+                if type(coords[0]) is str:
+                    for coord in coords:
+                        # Warn if the coordinate is missing from the columns
+                        if coord not in columns:
+                            raise Warning('Coord ' + coord + ' not in column '
+                                'names; we\'ve appended it, but unexpected '
+                                'behavior may occur.')
+                            columns.append(coord)
+                    # Convert it to a boolean dict
+                    coords = {col: (col in coords) for col in columns}
+                # ... or a list of bools, though that might be risky.
+                elif type(coords[0]) is bool:
+                    # Catch index exceptions to give a better description
+                    if len(coords) != len(columns):
+                        raise IndexError('Length of coords must match number '
+                            'of columns.')
+                    # No problems? Do a dict comprehension of the zip of the two.
+                    else:
+                        coords = {col: coord for col, coord in zip(columns, 
+                            coords)}
+                # Catch ill-formed coordinate declaration.
+                else:
+                    raise TypeError()
+            except TypeError:
+                raise TypeError('Coords must be in form [<str>], [<bool>], or '
+                        '{<key>: <bool>}.')
 
         # Add internal columns
         if _connect_col not in columns:
@@ -252,3 +289,11 @@ def knn_coords(df, k, coords, scale_length=None):
     # Return the corresponding first k elements from bucket
     return bucket.iloc[sel]
     
+def remove_duplicates(lst):
+    """ Removes duplicates in a list, preserving list order."""
+    unique = []
+    for ii in lst:
+        if ii not in unique:
+            unique.append(ii)
+    return unique
+

@@ -6,7 +6,6 @@ from . import io
 from .io import *
 
 from .. import core
-from ..core import *
 
 # Should I add a bit of logging or summat? I had it in dummy3.py
 
@@ -67,15 +66,16 @@ def load_mphtxt(mphfile, infer_lines=50):
 
     return header_line_nums, headers, colspecs, previewdata, fields, units
 
-def import_mphtxt(mphfile, headerlines, colspecs, fields, units=None):
-    # Perform the conversion
-    rawdf = spacetxt_to_panda(mphfile, headerlines, colspecs, fields)
+def import_mphtxt(mphfile, headerlines, colspecs, fields, coords, units=None):
+    # Perform the conversion, first to a stock pandas object
+    rawdf = pd.read_fwf(mphfile, skiprows=headerlines, names=fields, 
+        colspecs=colspecs)
     # Round to a bit-more-than-reasonable (given numerical accuracy) digit
     rawdf=np.round(rawdf, 8)
     # Remove duplicate rows, since comsol is a dick
     rawdf.drop_duplicates(inplace=True)
-
-    return rawdf
+    # Now convert to npd and return
+    return core.NodeDataFrame(rawdf, coords=coords, units=units)
 
 def mphtxt_prep_headers(txtFile):
     """ Extracts the header from a mphtxt file, generates column names, etc.
@@ -149,7 +149,7 @@ def mphtxt_prep_headers(txtFile):
             # golden gate bridge.  And uniquer, too.
             if isinstance(payload, list):
                 #rawfields = remove_duplicates([fld.lower() for fld in payload])
-                rawfields = remove_duplicates(payload)
+                rawfields = core.remove_duplicates(payload)
         else:
             break
     #        leakCount += 1
